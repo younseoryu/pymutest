@@ -54,7 +54,7 @@ import sys
 import fitz
 from kmeans import kmeans_1d
 
-def column_boxes(page, footer_margin=50, header_margin=50, no_image_text=True):
+def is_the_double_column_resume(page, footer_margin=50, header_margin=50, no_image_text=True):
     """Determine bboxes which wrap a column."""
     paths = page.get_drawings()
     bboxes = []
@@ -188,6 +188,34 @@ def column_boxes(page, footer_margin=50, header_margin=50, no_image_text=True):
         bbox_center = (bbox.x0 + bbox.x1) / 2
         return "left" if bbox_center < center_line else "right"
     
+    # # vylabs: determine single or doble column resume
+    # def is_double_column_resume(x0_values):
+    #     # extract x0 of each bbox to form the dataset for K-means
+    #     x0_values = [bbox.x0 for bbox in bboxes]
+    #     # handle case with less than 2 bboxes, assuming single-column layout
+    #     if len(x0_values) < 2:
+    #         return bboxes  # or handle as a special case as needed
+    #     # apply K-means clustering on x0 values
+    #     centroids, clusters = kmeans_1d(x0_values, k=2)
+    #     print('clusters:', clusters)
+    #     # determine if it's single or double-column based on centroids difference
+    #     # it's double column if centroids diff is larger than 1/4 of page width
+    #     # print("page.rect.width:", page.rect.width)
+    #     # print("page.rect.width / 4:", page.rect.width / 4)
+    #     if abs(centroids[0] - centroids[1]) > page.rect.width / 4:
+    #         return True
+    #     else:
+    #         # even though centroids have a big difference, 
+    #         # if the clusters count difference is more than x5 times, consider it as single resume
+    #         count_0 = 0
+    #         count_1 = 0
+    #         for value in clusters:
+    #             if value == 0:
+    #                 count_0 += 1
+    #             elif value == 1:
+    #                 count_1 += 1
+    #         return False
+
     # vylabs: determine single or doble column resume
     def is_double_column_resume(x0_values):
         if len(x0_values) < 2:
@@ -274,55 +302,58 @@ def column_boxes(page, footer_margin=50, header_margin=50, no_image_text=True):
     # vylabs: determine if resume is single column or double column
     all_x0_values = [bbox.x0 for bbox in bboxes]
     is_double_column = is_double_column_resume(all_x0_values)
+
+    return is_double_column
   
-    for i, bb in enumerate(bboxes):  # iterate old bboxes
-        check = False  # indicates unwanted joins
+    # for i, bb in enumerate(bboxes):  # iterate old bboxes
+    #     check = False  # indicates unwanted joins
 
-        # check if bb can extend one of the new blocks
-        for j in range(len(nblocks)):
-            nbb = nblocks[j]  # a new block
+    #     # check if bb can extend one of the new blocks
+    #     for j in range(len(nblocks)):
+    #         nbb = nblocks[j]  # a new block
 
-            # # never join across columns
-            # if bb == None or nbb.x1 < bb.x0 or bb.x1 < nbb.x0:
-            #     continue
+    #         # # never join across columns
+    #         # if bb == None or nbb.x1 < bb.x0 or bb.x1 < nbb.x0:
+    #         #     continue
 
-            # # never join across different background colors
-            # if in_bbox(nbb, path_bboxes) != in_bbox(bb, path_bboxes):
-            #     continue
+    #         # # never join across different background colors
+    #         # if in_bbox(nbb, path_bboxes) != in_bbox(bb, path_bboxes):
+    #         #     continue
 
-            # vylabs: if single column resume, join across columns.
-            # vylabs: if double column resume, only join if both blocks are in the same column side
-            if is_double_column is True:
-                # vylabs: determine each block's column side
-                bb_side = determine_column(bb)
-                nbb_side = determine_column(nbb)
-                # vylabs: only join if both blocks have the same column side
-                if bb_side != nbb_side:
-                    continue
+    #         # vylabs: if single column resume, join across columns.
+    #         # vylabs: if double column resume, only join if both blocks are in the same column side
+    #         if is_double_column is True:
+    #             # vylabs: determine each block's column side
+    #             bb_side = determine_column(bb)
+    #             nbb_side = determine_column(nbb)
 
-            temp = bb | nbb  # temporary extension of new block
-            check = can_extend(temp, nbb, nblocks)
-            if check == True:
-                break
+    #             # vylabs: only join if both blocks have the same column side
+    #             if bb_side != nbb_side:
+    #                 continue
 
-        if not check:  # bb cannot be used to extend any of the new bboxes
-            nblocks.append(bb)  # so add it to the list
-            j = len(nblocks) - 1  # index of it
-            temp = nblocks[j]  # new bbox added
+    #         temp = bb | nbb  # temporary extension of new block
+    #         check = can_extend(temp, nbb, nblocks)
+    #         if check == True:
+    #             break
 
-        # check if some remaining bbox is contained in temp
-        check = can_extend(temp, bb, bboxes)
-        if check == False:
-            nblocks.append(bb)
-        else:
-            nblocks[j] = temp
-        bboxes[i] = None
+    #     if not check:  # bb cannot be used to extend any of the new bboxes
+    #         nblocks.append(bb)  # so add it to the list
+    #         j = len(nblocks) - 1  # index of it
+    #         temp = nblocks[j]  # new bbox added
 
-    # do some elementary cleaning
-    nblocks = clean_nblocks(nblocks)
+    #     # check if some remaining bbox is contained in temp
+    #     check = can_extend(temp, bb, bboxes)
+    #     if check == False:
+    #         nblocks.append(bb)
+    #     else:
+    #         nblocks[j] = temp
+    #     bboxes[i] = None
 
-    # vylabs: last step sort to always start the blocks from left column, if the resume is double column resume
-    nblocks.sort(key=lambda bbox: (determine_column(bbox), bbox.y0))
+    # # do some elementary cleaning
+    # nblocks = clean_nblocks(nblocks)
 
-    # return identified text bboxes
-    return nblocks
+    # # vylabs: last step sort to always start the blocks from left column, if the resume is double column resume
+    # nblocks.sort(key=lambda bbox: (determine_column(bbox), bbox.y0))
+
+    # # return identified text bboxes
+    # return nblocks
